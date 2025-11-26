@@ -1,8 +1,9 @@
 import itertools
+import os
 import time
 
 import streamlit as st
-from geopy.geocoders import Nominatim
+from geopy.geocoders import Nominatim, GoogleV3
 from geopy.distance import geodesic
 
 
@@ -11,23 +12,68 @@ st.set_page_config(page_title="Otimizador de Rotas", layout="wide")
 
 @st.cache_resource
 def get_geolocator():
-    # Simple Nominatim geocoder (sem Google)
-    return Nominatim(user_agent="delivery_route_optimizer_streamlit")
+    """
+    Choose geocoder:
+    - If GOOGLE_MAPS_API_KEY is configured (Streamlit secrets or env), use Google.
+    - Otherwise, fall back to Nominatim.
+    """
+    api_key = None
+    use_google = False
+
+    # 1) Try Streamlit secrets (recommended on Streamlit Cloud)
+    try:
+        api_key = st.secrets.get("GOOGLE_MAPS_API_KEY", None)
+        if api_key:
+            use_google = True
+    except Exception:
+        pass
+
+    # 2) Fallback to environment variable (local .env, etc.)
+    if not api_key:
+        api_key = os.environ.get("GOOGLE_MAPS_API_KEY")
+        if api_key:
+            use_google = True
+
+    if api_key and use_google:
+        # Google Geocoding – more robust and less likely to be blocked
+        return GoogleV3(api_key=api_key, timeout=15), True
+
+    # Default: public Nominatim (can fail/limit on some cloud environments)
+    return Nominatim(user_agent="delivery_route_optimizer_streamlit"), False
 
 
-def geocode_address(address: str):
-    """Convert an address to (lat, lon) using Nominatim."""
-    geolocator = get_geolocator()
+def geocode_address(address: str, use_google: bool = False):
+    """Convert an address to (lat, lon) using Google (if configured) or Nominatim."""
+    geolocator, is_google = get_geolocator()
     query = address.strip()
     if not query:
         return None
+    
     try:
-        location = geolocator.geocode(query, timeout=15, exactly_one=True)
+        if is_google:
+            # Google Maps: simpler query
+            location = geolocator.geocode(query, exactly_one=True)
+        else:
+            # Nominatim: try multiple strategies for better results
+            location = geolocator.geocode(query, exactly_one=True, timeout=15)
+            if not location:
+                # Try with Portugal context
+                location = geolocator.geocode(f"{query}, Portugal", exactly_one=True, timeout=15)
+            if not location:
+                # Try without house number
+                parts = query.split()
+                if len(parts) > 1 and parts[0].isdigit():
+                    location = geolocator.geocode(" ".join(parts[1:]), exactly_one=True, timeout=15)
+        
         if location:
             return (location.latitude, location.longitude)
         return None
     except Exception as e:
-        st.write(f"Geocoding error for {address}: {e}")
+        error_msg = str(e)
+        if "Connection refused" in error_msg or "Max retries" in error_msg:
+            st.error(f"⚠️ Erro de ligação ao serviço de geocoding. Se estiveres no Streamlit Cloud, configura a Google Maps API Key em Settings → Secrets.")
+        else:
+            st.warning(f"Geocoding error for {address}: {error_msg}")
         return None
 
 
@@ -69,14 +115,22 @@ def optimize_route(addresses, return_to_start=True):
     if len(addresses) > 10:
         return {"error": "Maximum 10 addresses supported for performance reasons"}
 
+    # Check which geocoder is being used
+    _, use_google = get_geolocator()
+    if use_google:
+        st.info("🌍 Usando Google Maps Geocoding API")
+    else:
+        st.warning("⚠️ Usando OpenStreetMap (Nominatim) - pode ser bloqueado. Configura GOOGLE_MAPS_API_KEY para melhor performance.")
+    
     st.write("Geocoding addresses...")
     coords_map = {}
     for addr in addresses:
-        coord = geocode_address(addr)
+        coord = geocode_address(addr, use_google)
         if not coord:
-            return {"error": f"Could not geocode address: {addr}"}
+            return {"error": f"Could not geocode address: {addr}. Verifica se o endereço está correto ou configura a Google Maps API Key."}
         coords_map[addr] = coord
-        time.sleep(1)  # rate limit Nominatim
+        if not use_google:
+            time.sleep(1)  # rate limit Nominatim (not needed for Google)
 
     start_address = addresses[0]
     delivery_addresses = addresses[1:]
