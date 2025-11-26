@@ -105,8 +105,3 @@ Se tiveres dúvidas, sugestões ou encontrares algum bug, podes entrar em contac
 ## 📄 Licença
 
 Esta aplicação está licenciada sob a MIT License – ou seja, podes usar, modificar e distribuir livremente, desde que mantenhas os créditos ao autor.
-
-
-
-
-
