@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Delivery Route Optimizer</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-primary: #ffffff;
+            --bg-secondary: #f5f5f5;
+            --bg-sidebar: #ffffff;
+            --text-primary: #1a1a1a;
+            --text-secondary: #666666;
+            --border-color: #e0e0e0;
+            --accent-color: #10b981;
+            --accent-hover: #059669;
+            --route-color: #10b981;
+            --shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        [data-theme="dark"] {
+            --bg-primary: #1a1a1a;
+            --bg-secondary: #2d2d2d;
+            --bg-sidebar: #252525;
+            --text-primary: #ffffff;
+            --text-secondary: #b0b0b0;
+            --border-color: #404040;
+            --accent-color: #10b981;
+            --accent-hover: #059669;
+            --shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        .container {
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .sidebar {
+            width: 380px;
+            background-color: var(--bg-sidebar);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            transition: background-color 0.3s;
+        }
+
+        .sidebar-header {
+            padding: 20px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .sidebar-title {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+        .icon-circle {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background-color: var(--accent-color);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+        }
+
+        .theme-toggle {
+            background: none;
+            border: 1px solid var(--border-color);
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            color: var(--text-primary);
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+
+        .theme-toggle:hover {
+            background-color: var(--bg-secondary);
+        }
+
+        .search-bar {
+            padding: 15px 20px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 10px 15px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background-color: var(--bg-secondary);
+            color: var(--text-primary);
+            font-size: 14px;
+        }
+
+        .address-input-section {
+            padding: 20px;
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .input-group {
+            margin-bottom: 15px;
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        .address-input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            background-color: var(--bg-secondary);
+            color: var(--text-primary);
+            font-size: 14px;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-primary {
+            background-color: var(--accent-color);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background-color: var(--accent-hover);
+        }
+
+        .btn-secondary {
+            background-color: var(--bg-secondary);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+        }
+
+        .btn-secondary:hover {
+            background-color: var(--border-color);
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 20px 0;
+        }
+
+        .checkbox-group input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+
+        .route-card {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .route-card:hover {
+            box-shadow: var(--shadow);
+        }
+
+        .route-card.active {
+            border-color: var(--accent-color);
+            background-color: var(--bg-primary);
+        }
+
+        .route-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .route-title {
+            font-weight: 600;
+            font-size: 16px;
+        }
+
+        .route-stats {
+            display: flex;
+            gap: 15px;
+            font-size: 13px;
+            color: var(--text-secondary);
+            margin-bottom: 10px;
+        }
+
+        .route-stops {
+            list-style: none;
+        }
+
+        .route-stop {
+            padding: 8px 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .route-stop:last-child {
+            border-bottom: none;
+        }
+
+        .stop-number {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background-color: var(--accent-color);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .map-container {
+            flex: 1;
+            position: relative;
+        }
+
+        #map {
+            width: 100%;
+            height: 100%;
+        }
+
+        .loading-overlay {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background-color: var(--bg-sidebar);
+            padding: 15px 20px;
+            border-radius: 8px;
+            box-shadow: var(--shadow);
+            display: none;
+            z-index: 1000;
+        }
+
+        .loading-overlay.active {
+            display: block;
+        }
+
+        .error-message {
+            background-color: #fee;
+            color: #c33;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            display: none;
+        }
+
+        .error-message.active {
+            display: block;
+        }
+
+        .add-address-btn {
+            margin-top: 10px;
+        }
+
+        .remove-address-btn {
+            background: none;
+            border: none;
+            color: #ef4444;
+            cursor: pointer;
+            padding: 5px;
+            font-size: 18px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <div class="sidebar-title">
+                    <div class="icon-circle">🚚</div>
+                    <span id="titleRoutes">Rotas</span>
+                </div>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <select id="languageSelect" class="theme-toggle" style="padding: 8px 12px; border: 1px solid var(--border-color); border-radius: 6px; background-color: var(--bg-secondary); color: var(--text-primary); cursor: pointer;">
+                        <option value="pt">🇵🇹 PT</option>
+                        <option value="en">🇬🇧 EN</option>
+                    </select>
+                    <button class="theme-toggle" id="themeToggle">🌙 Dark</button>
+                </div>
+            </div>
+
+            <div class="search-bar">
+                <input type="text" class="search-input" placeholder="" id="searchInput">
+            </div>
+
+            <div class="address-input-section">
+                <h3 style="margin-bottom: 15px;"></h3>
+                
+                <div id="addressInputs">
+                    <div class="input-group">
+                        <label for="address0"></label>
+                        <input type="text" class="address-input" placeholder="" id="address0">
+                    </div>
+                </div>
+
+                <button class="btn btn-secondary add-address-btn" id="addAddressBtn"></button>
+
+                <div class="checkbox-group">
+                    <input type="checkbox" id="returnToStart" checked>
+                    <label for="returnToStart"></label>
+                </div>
+
+                <button class="btn btn-primary" id="optimizeBtn" style="width: 100%; margin-top: 20px;"></button>
+
+                <div class="error-message" id="errorMessage"></div>
+
+                <div id="routesContainer" style="margin-top: 20px;"></div>
+            </div>
+        </div>
+
+        <div class="map-container">
+            <div id="map"></div>
+            <div class="loading-overlay" id="loadingOverlay">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <div style="width: 20px; height: 20px; border: 3px solid var(--accent-color); border-top-color: transparent; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+                    <span></span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // Initialize map
+        const map = L.map('map').setView([40.7128, -74.0060], 13);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        let currentMarkers = [];
+        let currentRoutes = [];
+        let addressCount = 1;
+        let currentLanguage = localStorage.getItem('language') || 'pt';
+        let lastRouteData = null; // Guardar dados das rotas para atualizar idioma
+
+        // Translations
+        const translations = {
+            pt: {
+                title: 'Rotas',
+                searchPlaceholder: 'Pesquisar rotas...',
+                deliveryAddresses: 'Endereços de Entrega',
+                pickupLocation: 'Local de Coleta (Início)',
+                pickupPlaceholder: 'Endereço de partida',
+                addAddress: '+ Adicionar Endereço',
+                address: 'Endereço',
+                returnToStart: 'Voltar ao local de coleta',
+                optimizeRoutes: 'Otimizar Rotas',
+                optimizing: 'A otimizar itinerários...',
+                route: 'Rota',
+                paragem: 'paragem',
+                paragens: 'paragens',
+                min: 'min',
+                hour: 'h',
+                errorOptimize: 'Erro ao otimizar rotas: ',
+                start: 'Início',
+                stop: 'Parada',
+                end: 'Fim'
+            },
+            en: {
+                title: 'Routes',
+                searchPlaceholder: 'Search routes...',
+                deliveryAddresses: 'Delivery Addresses',
+                pickupLocation: 'Pickup Location (Start)',
+                pickupPlaceholder: 'Starting address',
+                addAddress: '+ Add Address',
+                address: 'Address',
+                returnToStart: 'Return to pickup location',
+                optimizeRoutes: 'Optimize Routes',
+                optimizing: 'Optimizing routes...',
+                route: 'Route',
+                paragem: 'stop',
+                paragens: 'stops',
+                min: 'min',
+                hour: 'h',
+                errorOptimize: 'Error optimizing routes: ',
+                start: 'Start',
+                stop: 'Stop',
+                end: 'End'
+            }
+        };
+
+        function t(key) {
+            return translations[currentLanguage][key] || key;
+        }
+
+        function updateLanguage() {
+            document.getElementById('titleRoutes').textContent = t('title');
+            document.getElementById('searchInput').placeholder = t('searchPlaceholder');
+            document.querySelector('.address-input-section h3').textContent = t('deliveryAddresses');
+            document.querySelector('label[for="address0"]').textContent = t('pickupLocation');
+            document.getElementById('address0').placeholder = t('pickupPlaceholder');
+            document.getElementById('addAddressBtn').textContent = t('addAddress');
+            document.querySelector('label[for="returnToStart"]').textContent = t('returnToStart');
+            document.getElementById('optimizeBtn').textContent = t('optimizeRoutes');
+            document.querySelector('#loadingOverlay span').textContent = t('optimizing');
+            
+            // Update existing address labels
+            updateAddressLabels();
+            
+            // Update route cards if they exist
+            if (lastRouteData) {
+                displayRoutes(lastRouteData);
+            }
+        }
+
+        // Language selector
+        const languageSelect = document.getElementById('languageSelect');
+        languageSelect.value = currentLanguage;
+        languageSelect.addEventListener('change', (e) => {
+            currentLanguage = e.target.value;
+            localStorage.setItem('language', currentLanguage);
+            updateLanguage();
+        });
+
+        // Theme toggle
+        const themeToggle = document.getElementById('themeToggle');
+        const currentTheme = localStorage.getItem('theme') || 'light';
+        document.documentElement.setAttribute('data-theme', currentTheme);
+        updateThemeButton();
+
+        themeToggle.addEventListener('click', () => {
+            const currentTheme = document.documentElement.getAttribute('data-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+            updateThemeButton();
+        });
+
+        function updateThemeButton() {
+            const theme = document.documentElement.getAttribute('data-theme');
+            themeToggle.textContent = theme === 'dark' ? '☀️ Light' : '🌙 Dark';
+        }
+
+        // Initialize language on page load
+        updateLanguage();
+
+        // Add address input
+        document.getElementById('addAddressBtn').addEventListener('click', () => {
+            const container = document.getElementById('addressInputs');
+            // Calcular o próximo número baseado nos endereços existentes
+            const existingInputs = container.querySelectorAll('.input-group');
+            const nextNumber = existingInputs.length; // O próximo será o número após o último existente
+            
+            const newInput = document.createElement('div');
+            newInput.className = 'input-group';
+            const addressPlaceholder = currentLanguage === 'pt' ? 'Endereço de entrega' : 'Delivery address';
+            newInput.innerHTML = `
+                <label>${t('address')} ${nextNumber}</label>
+                <div style="display: flex; gap: 5px;">
+                    <input type="text" class="address-input" placeholder="${addressPlaceholder}" id="address${nextNumber}">
+                    <button class="remove-address-btn" onclick="removeAddress(this)">×</button>
+                </div>
+            `;
+            container.appendChild(newInput);
+        });
+
+        function removeAddress(btn) {
+            btn.closest('.input-group').remove();
+            // Reordenar os labels dos endereços
+            updateAddressLabels();
+        }
+
+        function updateAddressLabels() {
+            const inputs = document.querySelectorAll('#addressInputs .input-group');
+            inputs.forEach((input, index) => {
+                const inputField = input.querySelector('.address-input');
+                if (index === 0) {
+                    // Primeiro é sempre "Local de Coleta (Início)"
+                    input.querySelector('label').textContent = t('pickupLocation');
+                    if (inputField) {
+                        inputField.id = 'address0';
+                        inputField.placeholder = t('pickupPlaceholder');
+                    }
+                } else {
+                    // Os restantes são "Endereço 1", "Endereço 2", etc.
+                    input.querySelector('label').textContent = `${t('address')} ${index}`;
+                    if (inputField) {
+                        inputField.id = `address${index}`;
+                        inputField.placeholder = currentLanguage === 'pt' ? 'Endereço de entrega' : 'Delivery address';
+                    }
+                }
+            });
+        }
+
+        // Optimize route
+        document.getElementById('optimizeBtn').addEventListener('click', async () => {
+            const addresses = [];
+            const inputs = document.querySelectorAll('.address-input');
+            
+            inputs.forEach(input => {
+                if (input.value.trim()) {
+                    addresses.push(input.value.trim());
+                }
+            });
+
+            if (addresses.length < 2) {
+                showError('Por favor, forneça pelo menos 2 endereços');
+                return;
+            }
+
+            const returnToStart = document.getElementById('returnToStart').checked;
+            const loadingOverlay = document.getElementById('loadingOverlay');
+            const errorMessage = document.getElementById('errorMessage');
+
+            loadingOverlay.classList.add('active');
+            errorMessage.classList.remove('active');
+            clearMap();
+
+            try {
+                const response = await fetch('/optimize', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        addresses: addresses,
+                        return_to_start: returnToStart
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.error) {
+                    showError(data.error);
+                    return;
+                }
+
+                lastRouteData = data; // Guardar dados para atualizar idioma depois
+                displayRoutes(data);
+                displayRouteOnMap(data.best_route, data.address_data);
+
+            } catch (error) {
+                showError(t('errorOptimize') + error.message);
+            } finally {
+                loadingOverlay.classList.remove('active');
+            }
+        });
+
+        function showError(message) {
+            const errorMessage = document.getElementById('errorMessage');
+            errorMessage.textContent = message;
+            errorMessage.classList.add('active');
+        }
+
+        function formatTime(minutes) {
+            // Garantir que é número e arredondar para inteiro
+            const min = Math.round(Number(minutes));
+            if (min < 60) {
+                return `${min} ${t('min')}`;
+            }
+            const hours = Math.floor(min / 60);
+            const remainingMinutes = min % 60;
+            if (remainingMinutes === 0) {
+                return `${hours}${t('hour')}`;
+            }
+            return `${hours}${t('hour')} ${remainingMinutes} ${t('min')}`;
+        }
+
+        function displayRoutes(data) {
+            const container = document.getElementById('routesContainer');
+            container.innerHTML = '';
+
+            if (data.all_routes && data.all_routes.length > 0) {
+                data.all_routes.forEach((route, index) => {
+                    const isBest = index === 0;
+                    const routeCard = document.createElement('div');
+                    routeCard.className = `route-card ${isBest ? 'active' : ''}`;
+                    
+                    const stops = route.addresses.slice(1, -1);
+                    const stopCount = stops.length;
+
+                    routeCard.innerHTML = `
+                        <div class="route-header">
+                            <div class="route-title">${isBest ? '⭐ ' : ''}${t('route')} #${index + 1}</div>
+                        </div>
+                        <div class="route-stats">
+                            <span>${stopCount} ${stopCount === 1 ? t('paragem') : t('paragens')}</span>
+                            <span>${route.distance.toFixed(1)} km</span>
+                            <span>${formatTime(route.time)}</span>
+                        </div>
+                        <ul class="route-stops">
+                            ${stops.map((addr, idx) => `
+                                <li class="route-stop">
+                                    <div class="stop-number">${idx + 1}</div>
+                                    <span>${addr}</span>
+                                </li>
+                            `).join('')}
+                        </ul>
+                    `;
+
+                    routeCard.addEventListener('click', () => {
+                        displayRouteOnMap(route, data.address_data);
+                        document.querySelectorAll('.route-card').forEach(card => {
+                            card.classList.remove('active');
+                        });
+                        routeCard.classList.add('active');
+                    });
+
+                    container.appendChild(routeCard);
+                });
+            }
+        }
+
+        function displayRouteOnMap(route, addressData) {
+            clearMap();
+
+            if (!route || !route.coordinates) return;
+
+            const coordinates = route.coordinates;
+            
+            // Add markers
+            coordinates.forEach((coord, index) => {
+                const isStart = index === 0;
+                const isEnd = index === coordinates.length - 1 && coordinates.length > 1;
+                
+                let markerColor = '#10b981';
+                if (isStart) markerColor = '#3b82f6';
+                if (isEnd && !isStart) markerColor = '#ef4444';
+
+                const marker = L.circleMarker([coord[0], coord[1]], {
+                    radius: 8,
+                    fillColor: markerColor,
+                    color: '#fff',
+                    weight: 2,
+                    opacity: 1,
+                    fillOpacity: 0.8
+                }).addTo(map);
+
+                const popupText = isStart ? t('start') : isEnd ? t('end') : `${t('stop')} ${index}`;
+                marker.bindPopup(`
+                    <strong>${popupText}</strong><br>
+                    ${route.addresses[index]}
+                `);
+
+                currentMarkers.push(marker);
+            });
+
+            // Add route line
+            const routeLine = L.polyline(coordinates.map(c => [c[0], c[1]]), {
+                color: '#10b981',
+                weight: 4,
+                opacity: 0.8
+            }).addTo(map);
+
+            currentRoutes.push(routeLine);
+
+            // Fit map to route
+            if (coordinates.length > 0) {
+                const bounds = L.latLngBounds(coordinates.map(c => [c[0], c[1]]));
+                map.fitBounds(bounds, { padding: [50, 50] });
+            }
+        }
+
+        function clearMap() {
+            currentMarkers.forEach(marker => map.removeLayer(marker));
+            currentRoutes.forEach(route => map.removeLayer(route));
+            currentMarkers = [];
+            currentRoutes = [];
+        }
+
+        // Search functionality
+        document.getElementById('searchInput').addEventListener('input', (e) => {
+            const searchTerm = e.target.value.toLowerCase();
+            const routeCards = document.querySelectorAll('.route-card');
+            routeCards.forEach(card => {
+                const text = card.textContent.toLowerCase();
+                card.style.display = text.includes(searchTerm) ? 'block' : 'none';
+            });
+        });
+
+        function formatTime(minutes) {
+            if (minutes < 60) {
+                return `${minutes} min`;
+            } else {
+                const hours = Math.floor(minutes / 60);
+                const remainingMinutes = minutes % 60;
+                if (remainingMinutes === 0) {
+                    return `${hours}h`;
+                } else {
+                    return `${hours}h ${remainingMinutes} min`;
+                }
+            }
+        }
+    </script>
+    <style>
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</body>
+</html>
+

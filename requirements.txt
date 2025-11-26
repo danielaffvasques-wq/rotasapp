@@ -1,0 +1,17 @@
+# Dev environment
+pip
+autopep8
+
+# Mouse jiggler dependency
+pyautogui
+
+# Video downloader dependency
+yt-dlp
+
+# Delivery route optimizer dependencies
+flask
+flask-cors
+geopy
+python-dotenv
+streamlit
+
